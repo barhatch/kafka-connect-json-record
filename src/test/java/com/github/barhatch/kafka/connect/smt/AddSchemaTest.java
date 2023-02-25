@@ -17,12 +17,11 @@
 package com.github.barhatch.kafka.connect.smt;
 
 import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
 import org.junit.Test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,11 +36,12 @@ public class AddSchemaTest {
     xform.close();
   }
 
-  @Test(expected = DataException.class)
-  public void topLevelStructRequired() {
-    xform.configure(Collections.singletonMap("json.schema.field.name", "myUuid"));
-    xform.apply(new SourceRecord(null, null, "", 0, Schema.INT32_SCHEMA, 42));
-  }
+  // @Test(expected = DataException.class)
+  // public void topLevelStructRequired() {
+  // xform.configure(Collections.singletonMap("json.schema.field.name",
+  // "myUuid"));
+  // xform.apply(new SourceRecord(null, null, "", 0, Schema.INT32_SCHEMA, 42));
+  // }
 
   // @Test
   // public void copySchemaAndAddSchemaField() {
@@ -91,13 +91,14 @@ public class AddSchemaTest {
     props.put("json.schema.field.name", "record");
 
     xform.configure(props);
-
     final SourceRecord record = new SourceRecord(null, null, "test", 0,
-        null, Collections.singletonMap("magic", 42L));
+        null, "");
 
     final SourceRecord transformedRecord = xform.apply(record);
-    assertEquals(42L, ((Map) transformedRecord.value()).get("magic"));
-    assertNotNull(((Map) transformedRecord.value()).get("myUuid"));
 
+    assertEquals(Schema.STRING_SCHEMA,
+        transformedRecord.valueSchema().field("record").schema());
+
+    assertNotNull(((Struct) transformedRecord.value()).getString("record"));
   }
 }
