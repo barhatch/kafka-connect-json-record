@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright © 2019 Christopher Matta (chris.matta@gmail.com)
+  ~ Copyright © 2023 Barhatch Limited (tom@miller.mx)
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.github.cjmatta.kafka.connect.smt</groupId>
+    <groupId>com.github.barhatch.kafka.connect.smt</groupId>
     <artifactId>InsertUuid</artifactId>
     <version>1.0-SNAPSHOT</version>
     <properties>
@@ -42,6 +42,21 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>connect-transforms</artifactId>
             <version>${kafkaconnect.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.orbit.com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.14.1.wso2v1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>2.14.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>bson</artifactId>
+            <version>4.8.0</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
