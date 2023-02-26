@@ -21,13 +21,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.barhatch.kafka.connect.smt</groupId>
-    <artifactId>AddSchema</artifactId>
+    <artifactId>kafka-connect-add-schema</artifactId>
     <version>1.0-SNAPSHOT</version>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>1.8</java.version>
-        <kafkaconnect.version>2.1.1</kafkaconnect.version>
-        <confluent.version>5.1.1</confluent.version>
+        <kafkaconnect.version>3.4.0</kafkaconnect.version>
     </properties>
 
 
@@ -44,29 +43,9 @@
             <version>${kafkaconnect.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.wso2.orbit.com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.14.1.wso2v1</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>2.14.2</version>
-        </dependency>
-         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-            <version>2.14.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.mongodb</groupId>
-            <artifactId>bson</artifactId>
-            <version>4.8.0</version>
-        </dependency>
-        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <version>4.13</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

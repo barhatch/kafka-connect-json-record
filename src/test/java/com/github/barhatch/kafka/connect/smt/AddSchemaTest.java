@@ -1,104 +1,62 @@
-/*
- * Copyright © 2023 Barhatch Limited (tom@miller.mx)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.github.barhatch.kafka.connect.smt;
 
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.source.SourceRecord;
-import org.junit.After;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
 
+import com.github.barhatch.kafka.connect.smt.AddSchema.Value;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import org.apache.kafka.common.utils.Bytes;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.source.SourceRecord;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 public class AddSchemaTest {
+  private final AddSchema<SourceRecord> transform = new Value<>();
 
-  private AddSchema<SourceRecord> xform = new AddSchema.Value<>();
-
-  @After
-  public void tearDown() throws Exception {
-    xform.close();
+  @Before
+  public void setUp() {
+    final Map<String, Object> props = new HashMap<>();
+    props.put(AddSchema.FIELD_NAME, "name");
+    transform.configure(props);
   }
 
-  // @Test(expected = DataException.class)
-  // public void topLevelStructRequired() {
-  // xform.configure(Collections.singletonMap("json.schema.field.name",
-  // "myUuid"));
-  // xform.apply(new SourceRecord(null, null, "", 0, Schema.INT32_SCHEMA, 42));
-  // }
-
-  // @Test
-  // public void copySchemaAndAddSchemaField() {
-  // final Map<String, Object> props = new HashMap<>();
-
-  // props.put("uuid.field.name", "myUuid");
-
-  // xform.configure(props);
-
-  // final Schema simpleStructSchema =
-  // SchemaBuilder.struct().name("name").version(1).doc("doc").field("magic",
-  // Schema.OPTIONAL_INT64_SCHEMA).build();
-  // final Struct simpleStruct = new Struct(simpleStructSchema).put("magic", 42L);
-
-  // final SourceRecord record = new SourceRecord(null, null, "test", 0,
-  // simpleStructSchema, simpleStruct);
-  // final SourceRecord transformedRecord = xform.apply(record);
-
-  // assertEquals(simpleStructSchema.name(),
-  // transformedRecord.valueSchema().name());
-  // assertEquals(simpleStructSchema.version(),
-  // transformedRecord.valueSchema().version());
-  // assertEquals(simpleStructSchema.doc(),
-  // transformedRecord.valueSchema().doc());
-
-  // assertEquals(Schema.OPTIONAL_INT64_SCHEMA,
-  // transformedRecord.valueSchema().field("magic").schema());
-  // assertEquals(42L, ((Struct)
-  // transformedRecord.value()).getInt64("magic").longValue());
-  // assertEquals(Schema.STRING_SCHEMA,
-  // transformedRecord.valueSchema().field("myUuid").schema());
-  // assertNotNull(((Struct) transformedRecord.value()).getString("myUuid"));
-
-  // // Exercise caching
-  // final SourceRecord transformedRecord2 = xform.apply(
-  // new SourceRecord(null, null, "test", 1, simpleStructSchema, new
-  // Struct(simpleStructSchema)));
-  // assertSame(transformedRecord.valueSchema(),
-  // transformedRecord2.valueSchema());
-
-  // }
+  @After
+  public void tearDown() {
+    transform.close();
+  }
 
   @Test
-  public void schemalessAddSchemaField() {
-    final Map<String, Object> props = new HashMap<>();
+  public void testWithoutSchema() {
+    String test = "Hello World!";
+    final SourceRecord record = new SourceRecord(null, null, "topic", null,
+        test);
+    final SourceRecord transformedRecord = transform.apply(record);
+    assertEquals(test, transformedRecord.value());
+  }
 
-    props.put("json.schema.field.name", "record");
+  @Test
+  public void testWithSchema() {
+    String test = "{\"account\":{\"id\":\"cabb4e2a-be27-3863-b3f9-d2c6ecd835db\",\"opening_timestamp\":null}}";
+    final Schema bytesSchema = SchemaBuilder.bytes().name("testSchema").build();
+    final byte[] bytes = test.getBytes();
+    final SourceRecord record = new SourceRecord(null, null, "topic", bytesSchema, bytes);
+    final SourceRecord transformedRecord = transform.apply(record);
+    assertEquals("{\"account\":{\"id\":\"cabb4e2a-be27-3863-b3f9-d2c6ecd835db\",\"opening_timestamp\":\"\"}}",
+        ((Struct) transformedRecord.value()).getString("name"));
+  }
 
-    xform.configure(props);
-    final SourceRecord record = new SourceRecord(null, null, "test", 0,
-        null, "");
-
-    final SourceRecord transformedRecord = xform.apply(record);
-
-    assertEquals(Schema.STRING_SCHEMA,
-        transformedRecord.valueSchema().field("record").schema());
-
-    assertNotNull(((Struct) transformedRecord.value()).getString("record"));
+  @Test
+  public void testWithNull() {
+    String test = null;
+    final Schema bytesSchema = SchemaBuilder.bytes().name("testSchema").build();
+    final SourceRecord record = new SourceRecord(null, null, "topic", bytesSchema, test);
+    final SourceRecord transformedRecord = transform.apply(record);
+    assertEquals(new String(), ((Struct) transformedRecord.value()).getString("name"));
   }
 }

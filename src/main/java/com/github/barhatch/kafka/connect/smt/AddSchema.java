@@ -16,13 +16,11 @@
 
 package com.github.barhatch.kafka.connect.smt;
 
-import org.bson.json.JsonMode;
-import org.bson.json.JsonWriterSettings;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigDef.Importance;
+import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.connect.connector.ConnectRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -33,77 +31,42 @@ import org.apache.kafka.connect.transforms.util.SimpleConfig;
 
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public abstract class AddSchema<R extends ConnectRecord<R>> implements Transformation<R> {
-
-  private static Logger logger = LoggerFactory.getLogger(AddSchema.class);
-
-  public static final String OVERVIEW_DOC = "Add schema to a raw JSON connect record";
-
-  private interface ConfigName {
-    String JSON_STRING_FIELD_NAME = "json.string.field.name";
-    String JSON_WRITER_OUTPUT_MODE = "json.writer.output.mode";
-  }
-
-  public static final ConfigDef CONFIG_DEF = new ConfigDef()
-      .define(ConfigName.JSON_STRING_FIELD_NAME, ConfigDef.Type.STRING, "record", ConfigDef.Importance.HIGH,
-          "Field name for JSON record")
-      .define(ConfigName.JSON_WRITER_OUTPUT_MODE, ConfigDef.Type.STRING, "RELAXED", ConfigDef.Importance.MEDIUM,
-          "Output mode of JSON Writer (RELAXED,EXTENDED,SHELL or STRICT)");
-
-  private static final String PURPOSE = "adding Schema to schemaless record";
-
+  static String FIELD_NAME = "field.name";
+  private static final String PURPOSE = "Add schema to a record";
+  static final ConfigDef CONFIG_DEF = new ConfigDef().define(FIELD_NAME, Type.STRING, Importance.HIGH, PURPOSE);
   private String fieldName;
-  private Schema jsonStringOutputSchema;
-  JsonWriterSettings jsonWriterSettings;
 
   @Override
   public void configure(Map<String, ?> props) {
     final SimpleConfig config = new SimpleConfig(CONFIG_DEF, props);
-    fieldName = config.getString(ConfigName.JSON_STRING_FIELD_NAME);
-    jsonStringOutputSchema = makeUpdatedSchema();
-
-    jsonWriterSettings = JsonWriterSettings
-        .builder()
-        .outputMode(toJsonMode(config.getString(ConfigName.JSON_WRITER_OUTPUT_MODE)))
-        .build();
+    fieldName = config.getString(FIELD_NAME);
   }
 
   @Override
   public R apply(R record) {
-    if (isTombstoneRecord(record))
+    if (actualSchema(record) == null) {
       return record;
-
-    if (operatingSchema(record) == null) {
-      return applySchemaless(record);
     } else {
-      logger.info("addSchema is ignoring value/key with schema");
-      return record;
+      return applySchema(record);
     }
   }
 
-  private R applySchemaless(R record) {
-    final Object value = operatingValue(record);
+  private R applySchema(R record) {
+    final Object value = actualValue(record);
 
-    ObjectMapper objectMapper = new ObjectMapper();
+    Schema updatedSchema = makeUpdatedSchema();
 
-    String valueAsString = null;
+    final Struct updatedValue = new Struct(updatedSchema);
 
-    try {
-      valueAsString = objectMapper.writeValueAsString(value);
-    } catch (JsonProcessingException e) {
-      // catch various errors
-      e.printStackTrace();
-      logger.info("failed to convert value to JSON string");
+    if (value != null) {
+      updatedValue.put(fieldName,
+          new String((byte[]) value, StandardCharsets.UTF_8).replaceAll("null", "\"\"").replaceAll("\u0000", ""));
+    } else {
+      updatedValue.put(fieldName, new String());
     }
 
-    final Struct jsonStringOutputStruct = new Struct(jsonStringOutputSchema);
-
-    jsonStringOutputStruct.put(fieldName, valueAsString);
-
-    return newRecord(record, jsonStringOutputSchema, jsonStringOutputStruct);
+    return newRecord(record, updatedSchema, updatedValue);
   }
 
   @Override
@@ -116,44 +79,28 @@ public abstract class AddSchema<R extends ConnectRecord<R>> implements Transform
   }
 
   private Schema makeUpdatedSchema() {
-    return SchemaBuilder
-        .struct()
-        .name("jsonStringSchema")
-        .version(1)
-        .field(fieldName, Schema.STRING_SCHEMA)
-        .build();
+    final SchemaBuilder builder = SchemaBuilder.struct()
+        .name("json_schema")
+        .field(fieldName, Schema.STRING_SCHEMA);
+
+    return builder.build();
   }
 
-  private JsonMode toJsonMode(String jsonMode) {
-    switch (jsonMode) {
-      case "SHELL":
-        return JsonMode.SHELL;
-      case "EXTENDED":
-        return JsonMode.EXTENDED;
-      case "STRICT":
-        return JsonMode.STRICT;
-      default:
-        return JsonMode.RELAXED;
-    }
-  }
+  protected abstract Schema actualSchema(R record);
 
-  protected abstract Schema operatingSchema(R record);
-
-  protected abstract Object operatingValue(R record);
+  protected abstract Object actualValue(R record);
 
   protected abstract R newRecord(R record, Schema updatedSchema, Object updatedValue);
-
-  protected abstract boolean isTombstoneRecord(R record);
 
   public static class Key<R extends ConnectRecord<R>> extends AddSchema<R> {
 
     @Override
-    protected Schema operatingSchema(R record) {
+    protected Schema actualSchema(R record) {
       return record.keySchema();
     }
 
     @Override
-    protected Object operatingValue(R record) {
+    protected Object actualValue(R record) {
       return record.key();
     }
 
@@ -162,23 +109,17 @@ public abstract class AddSchema<R extends ConnectRecord<R>> implements Transform
       return record.newRecord(record.topic(), record.kafkaPartition(), updatedSchema, updatedValue,
           record.valueSchema(), record.value(), record.timestamp());
     }
-
-    @Override
-    protected boolean isTombstoneRecord(R record) {
-      return record.key() == null;
-    }
-
   }
 
   public static class Value<R extends ConnectRecord<R>> extends AddSchema<R> {
 
     @Override
-    protected Schema operatingSchema(R record) {
+    protected Schema actualSchema(R record) {
       return record.valueSchema();
     }
 
     @Override
-    protected Object operatingValue(R record) {
+    protected Object actualValue(R record) {
       return record.value();
     }
 
@@ -186,11 +127,6 @@ public abstract class AddSchema<R extends ConnectRecord<R>> implements Transform
     protected R newRecord(R record, Schema updatedSchema, Object updatedValue) {
       return record.newRecord(record.topic(), record.kafkaPartition(), record.keySchema(), record.key(), updatedSchema,
           updatedValue, record.timestamp());
-    }
-
-    @Override
-    protected boolean isTombstoneRecord(R record) {
-      return record.value() == null;
     }
 
   }
